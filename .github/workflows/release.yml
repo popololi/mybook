@@ -1,10 +1,10 @@
 name: Release Build
 on:
   workflow_dispatch:
+
 jobs:
   prepare:
     runs-on: ubuntu-latest
-    # 【改动1】分支从 master 改成 main（你仓库的默认分支是 main）
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     outputs:
       version: ${{ steps.set-ver.outputs.version }}
@@ -18,19 +18,19 @@ jobs:
         run: |
           if [ ! -z "${{ secrets.RELEASE_KEY_STORE }}" ]; then
             echo "sign=yes" >> $GITHUB_OUTPUT
+          else
+            echo "sign=no" >> $GITHUB_OUTPUT
           fi
           if [ ! -z "${{ secrets.SERVICE_ACCOUNT_JSON }}" ]; then
             echo "play=yes" >> $GITHUB_OUTPUT
+          else
+            echo "play=no" >> $GITHUB_OUTPUT
           fi
+
   build:
     needs: prepare
-    # 【改动2】删掉原来的 if: ${{ needs.prepare.outputs.sign }}
-    # 这样即使没配置签名密钥，也会执行构建（产出未签名/自动签名的 APK）
-    permissions:
-      contents: write
     strategy:
       matrix:
-        # 【改动3】只保留 app 版本，去掉 google 变体（谷歌商店包需要额外配置，没必要）
         product: [ app ]
       fail-fast: false
     runs-on: ubuntu-latest
@@ -38,6 +38,7 @@ jobs:
       product: ${{ matrix.product }}
       VERSION: ${{ needs.prepare.outputs.version }}
       play: ${{ needs.prepare.outputs.play }}
+      sign: ${{ needs.prepare.outputs.sign }}
     steps:
       - uses: actions/checkout@v5
       - name: Set up JDK 17
@@ -45,9 +46,9 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: 17
-      # 【改动4】签名步骤改成：只有配置了 RELEASE_KEY_STORE 密钥才执行
+
       - name: Release Apk Sign
-        if: ${{ secrets.RELEASE_KEY_STORE != '' }}
+        if: env.sign == 'yes'
         run: |
           echo -e "\n" >> gradle.properties
           echo RELEASE_KEY_ALIAS='${{ secrets.RELEASE_KEY_ALIAS }}' >> gradle.properties
@@ -55,30 +56,34 @@ jobs:
           echo RELEASE_STORE_PASSWORD='${{ secrets.RELEASE_STORE_PASSWORD }}' >> gradle.properties
           echo RELEASE_STORE_FILE='./key.jks' >> gradle.properties
           echo ${{ secrets.RELEASE_KEY_STORE }} | base64 --decode > $GITHUB_WORKSPACE/app/key.jks
+
       - name: Unify Version Name
         run: |
           echo "统一版本号"
           sed "/def version/c def version = \"${{ env.VERSION }}\"" $GITHUB_WORKSPACE/app/build.gradle  -i
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
+
       - name: Build With Gradle
         run: |
           echo "开始进行${{ env.product }}构建"
           chmod +x gradlew
           ./gradlew assemble${{ env.product }}release --build-cache --parallel --daemon --warning-mode all
+
       - name: Organize the Files
         run: |
           mkdir -p ${{ github.workspace }}/apk/
           cp -rf ${{ github.workspace }}/app/build/outputs/apk/*/*/*.apk ${{ github.workspace }}/apk/
-
+          
       - name: Upload App To Artifact
         uses: actions/upload-artifact@v7
         with:
           name: legado_${{ env.product }}
           path: ${{ github.workspace }}/apk/*.apk
-      # 【改动5】GitHub Release 发布步骤保留，用默认 GITHUB_TOKEN 即可
+
       - name: Release
-        if: ${{ env.product == 'app' }}
+        if: env.product == 'app'
         uses: softprops/action-gh-release@v2
         with:
           name: legado_app_${{ env.VERSION }}
@@ -89,4 +94,3 @@ jobs:
           files: ${{ github.workspace }}/apk/legado_app_*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-fix: 修正分支为 main，去掉签名密钥门槛
