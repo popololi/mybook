@@ -1,6 +1,6 @@
 name: Release Build
 on:
-  workflow_dispatch:
+  workflow_dispatch
 
 jobs:
   prepare:
@@ -75,23 +75,22 @@ jobs:
         run: |
           mkdir -p ${{ github.workspace }}/apk/
           cp -rf ${{ github.workspace }}/app/build/outputs/apk/*/*/*.apk ${{ github.workspace }}/apk/
-          
+
       - name: Upload App To Artifact
         uses: actions/upload-artifact@v7
         with:
           name: legado_${{ env.product }}
           path: ${{ github.workspace }}/apk/*.apk
 
-      - name: Release
-        if: env.product == 'app'
-        uses: softprops/action-gh-release@v2
-        with:
-          name: 我的阅读_${{ env.VERSION }}
-          tag_name: ${{ env.VERSION }}
-          # body_path: ${{ github.workspace }}/CHANGELOG.md  # 后续新建CHANGELOG.md再取消注释启用更新日志
-          draft: false
-          prerelease: false
-          files: ${{ github.workspace }}/apk/*.apk
-          fail_on_unmatched_files: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
+#      - name: Release
+#        if: env.product == 'app'
+#        uses: softprops/action-gh-release@v2
+#        with:
+#          name: 我的阅读_${{ env.VERSION }}
+#          tag_name: ${{ env.VERSION }}
+#          draft: false
+#          prerelease: false
+#          files: ${{ github.workspace }}/apk/*.apk
+#          fail_on_unmatched_files: false
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
