@@ -47,7 +47,7 @@ android {
         }
     }
     defaultConfig {
-        applicationId "com.popololi.myreader"
+        applicationId "io.legado.app.release"
         minSdk 21
         targetSdk 36
         versionCode 10000 + gitCommits
